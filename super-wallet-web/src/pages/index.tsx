@@ -1,6 +1,10 @@
+import { SuperWallet__factory } from "@/typechain-types";
+import { SuperWallet } from "@/typechain-types/contracts";
+import { SuperWalletFactory__factory } from "@/typechain-types/factories/contracts/SuperWalletFactory.sol";
 import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { Web3Auth } from "@web3auth/modal";
 import {
+  ethers,
   getAddress,
   JsonRpcProvider,
   parseEther,
@@ -10,14 +14,16 @@ import {
 import { useEffect, useState } from "react";
 import { Client, Presets } from "userop";
 
-const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
-const simpleAccountFactory = "0x9406Cc6185a346906296840746125a0E44976454";
+const entryPointAddress = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+//const simpleAccountFactory = "0x9406Cc6185a346906296840746125a0E44976454";
+const swapRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
+const superWalletFactoryAddress = "0x6bAaba96847E3909D34124aD8cf6314aCdf41f66";
 const pmContext = {
   type: "payg",
 };
 export default function Home() {
   const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
-  const [account, setAccount] = useState<Presets.Builder.SimpleAccount | null>(
+  const [account, setAccount] = useState<SuperWallet | null>(
     null
   );
 
@@ -30,7 +36,7 @@ export default function Home() {
 
   const [recipientAddress, setRecipientAddress] = useState("");
   const [amount, setAmount] = useState("");
-  const [receiveToken, setReceiveToken] = useState('');
+  const [receiveToken, setReceiveToken] = useState<string>("0x7af963cF6D228E564e2A0aA0DdBF06210B38615D");
 
   const [displayedContent, setDisplayedContent] = useState('sendToken');
 
@@ -85,13 +91,37 @@ export default function Home() {
   }, []);
 
   const createAccount = async (privateKey: string) => {
-    return await Presets.Builder.SimpleAccount.init(
+
+    const superWalletFactory = new ethers.Contract(
+      superWalletFactoryAddress,
+      SuperWalletFactory__factory.abi,
+      new Wallet("", new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL))
+    );
+
+    const tx = await superWalletFactory.createAccount("0xdbdf291E9b384CB887d78d6509A7102D74936272", 5, {
+      _entryPoint: entryPointAddress,
+      _swapRouter: swapRouterAddress,
+    });
+    //const tx = await superWalletFactory.getAddress("0xdbdf291E9b384CB887d78d6509A7102D74936272",0);
+    const receipt = await tx.wait();
+
+    //const res = await superWalletFactory.getAddress("0xdbdf291E9b384CB887d78d6509A7102D74936272",0);
+
+    // await res.wait();
+
+
+    console.log(tx);
+
+    console.log(receipt);
+
+
+    /*return await new SuperWallet.init(
       new Wallet(privateKey) as any,
       rpcUrl,
       entryPoint,
-      simpleAccountFactory,
+      superWalletFactoryAddress,
       paymaster
-    );
+    );*/
   };
 
   const getPrivateKey = async (provider: SafeEventEmitterProvider) => {
@@ -182,8 +212,58 @@ export default function Home() {
     }
   };
 
-  const handleReceiveTokenChange = (e) => {
-    setReceiveToken(e.target.value);
+  const handleReceiveTokenChange = (token: string) => {
+    setReceiveToken(token);
+  };
+
+  const updateReceiveToken = async () => {
+    if (!account) {
+      throw new Error("Account not initialized");
+    }
+    console.log("Selected Token:" + receiveToken);
+
+    const client = await Client.init(rpcUrl, entryPoint);
+
+    const target = account.getSender();
+    const value = parseEther("0");
+    const res = await client.sendUserOperation(
+      account.updateReceiveToken(receiveToken)
+    );
+    addEvent(`UserOpHash: ${res.userOpHash}`);
+
+    addEvent("Waiting for transaction...");
+    const ev = await res.wait();
+    addEvent(`Transaction hash: ${ev?.transactionHash ?? null}`);
+
+    /*const client = await Client.init(rpcUrl, entryPoint);
+
+    const target = account.getSender();
+    const value = parseEther("0");
+
+    const abi = 'updateReceiveToken(address newReceiveToken)';
+    const iface = new ethers.Interface(abi);
+    const abiCoder = new ethers.AbiCoder();
+    const encodeFuncData = iface.encodeFunctionData("updateReceive",[
+      receiveToken
+    ])*/
+    //const updateReceiveTokenFunctionArguments = abiCoder.encode(['address'], [receiveToken]);
+
+    // test関数の関数シグネチャと引数を結合してデータを作成
+    //const updateReceiveTokenFunctionData = abiCoder.encodeFunctionSignature(testFunctionSignature) + updateReceiveTokenFunctionArguments.slice(2);
+
+    /*const res = await client.sendUserOperation(
+      account.execute(target, value, encodeFuncData),
+      {
+        onBuild: async (op) => {
+          addEvent(`Signed UserOperation: `);
+          addEvent(JSON.stringify(op, null, 2) as any);
+        },
+      }
+    );
+
+    const ev = await res.wait();
+    addEvent(`Transaction hash: ${ev?.transactionHash ?? null}`);*/
+
   };
 
   const renderContent = () => {
@@ -259,9 +339,9 @@ export default function Home() {
                   type="radio"
                   name="receiveToken"
                   value="GHO"
-                  onChange={handleReceiveTokenChange}
+                  onChange={() => handleReceiveTokenChange("0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f")}
                   checked={receiveToken === "GHO"}
-                  className="form-radio h-5 w-5 text-blue-500"
+                  className={`form-radio h-5 w-5 text-blue-500 ${receiveToken === "GHO" ? 'checked-style' : ''}`}
                 />
                 <span className="ml-2">GHO</span>
               </label>
@@ -272,7 +352,7 @@ export default function Home() {
                   type="radio"
                   name="receiveToken"
                   value="ETH"
-                  onChange={handleReceiveTokenChange}
+                  onChange={() => handleReceiveTokenChange("0x7af963cF6D228E564e2A0aA0DdBF06210B38615D")}
                   checked={receiveToken === "ETH"}
                   className="form-radio h-5 w-5 text-blue-500"
                 />
@@ -285,7 +365,7 @@ export default function Home() {
                   type="radio"
                   name="receiveToken"
                   value="USDC"
-                  onChange={handleReceiveTokenChange}
+                  onChange={() => handleReceiveTokenChange("0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557")}
                   checked={receiveToken === "USDC"}
                   className="form-radio h-5 w-5 text-blue-500"
                 />
@@ -294,6 +374,7 @@ export default function Home() {
             </div>
             <button
               className="bg-blue-500 text-white px-4 py-2 rounded mt-4"
+              onClick={updateReceiveToken}
             >
               Decide
             </button>

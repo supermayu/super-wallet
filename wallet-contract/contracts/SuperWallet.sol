@@ -29,8 +29,8 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     uint96 private _nonce;
     address public owner;
 
-    address private _receiveToken = 0xcbE9771eD31e761b744D3cB9eF78A1f32DD99211;//GHO
-    address private _sentToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;//goerliETH多分
+    address private _receiveToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
+    //address private _sentToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;//goerliETH多分
     address public swapRouterAddress = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
     uint24 public constant poolFee = 3000;
@@ -38,7 +38,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     IEntryPoint private immutable _entryPoint;
     ISwapRouter public immutable swapRouter;
 
-    constructor(IEntryPoint anEntryPoint,ISwapRouter _swapRouter) {
+    constructor(IEntryPoint anEntryPoint, ISwapRouter _swapRouter) {
         _entryPoint = anEntryPoint;
         _disableInitializers();
         swapRouter = _swapRouter;
@@ -46,7 +46,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
 
     
 
-    event SimpleAccountInitialized(IEntryPoint indexed entryPoint, address indexed owner);
+    event SuperWalletInitialized(IEntryPoint indexed entryPoint, address indexed owner);
 
     modifier onlyOwner() {
         _onlyOwner();
@@ -68,7 +68,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
 
     function _onlyOwner() internal view {
         //directly from EOA owner, or through the account itself (which gets redirected through execute())
-        require(msg.sender == owner || msg.sender == address(this), "only owner");
+        require(msg.sender == owner || msg.sender == address(this), "only owner!");
     }
 
     /**
@@ -101,7 +101,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
 
     function _initialize(address anOwner) internal virtual {
         owner = anOwner;
-        emit SimpleAccountInitialized(_entryPoint, owner);
+        emit SuperWalletInitialized(_entryPoint, owner);
     }
 
     // Require the function call went through EntryPoint or owner
@@ -164,11 +164,11 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
      * Swap goerliETH to GHO
      * @param amountIn amount of the token sent
      */
-    function receiveToken(uint256 amountIn) external payable virtual {
+    function receiveToken(uint256 amountIn, address tokenIn) external payable virtual {
 
         ISwapRouter.ExactInputSingleParams memory params =
            ISwapRouter.ExactInputSingleParams({
-            tokenIn: _sentToken,
+            tokenIn: tokenIn,
             tokenOut: _receiveToken,
             fee: poolFee,
             recipient: address(this),
@@ -188,5 +188,17 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
          _requireFromEntryPointOrOwner();
         _call(swapRouterAddress, 0, funcData);
     }
+
+    // _receiveToken を取得する関数
+    function getReceiveToken() public view returns (address) {
+        return _receiveToken;
+    }
+
+    // _receiveToken を書き換える関数
+    function updateReceiveToken(address newReceiveToken) public {
+        _receiveToken = newReceiveToken;
+    }
+
+
 }
 
