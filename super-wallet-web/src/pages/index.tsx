@@ -1,6 +1,6 @@
 import { SuperWallet__factory } from "@/typechain-types";
-import { SuperWallet } from "@/typechain-types/contracts";
-import { SuperWalletFactory__factory } from "@/typechain-types/factories/contracts/SuperWalletFactory.sol";
+//import { SuperWallet } from "../typechain-types/contracts";
+import { SuperWalletFactory__factory } from "../typechain-types/factories/contracts";
 import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { Web3Auth } from "@web3auth/modal";
 import {
@@ -12,20 +12,22 @@ import {
   Wallet,
 } from "ethers";
 import { useEffect, useState } from "react";
+import { useStyleRegistry } from "styled-jsx";
 import { Client, Presets } from "userop";
 
 const entryPointAddress = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
 //const simpleAccountFactory = "0x9406Cc6185a346906296840746125a0E44976454";
 const swapRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
-const superWalletFactoryAddress = "0x6bAaba96847E3909D34124aD8cf6314aCdf41f66";
+const superWalletFactoryAddress = "0xa5a483C4C40eaB04491653e299C5d069AA8748C1";
 const pmContext = {
   type: "payg",
 };
 export default function Home() {
   const [web3auth, setWeb3auth] = useState<Web3Auth | null>(null);
-  const [account, setAccount] = useState<SuperWallet | null>(
+  const [account, setAccount] = useState<ethers.Contract | null>(
     null
   );
+  const [superWalletAddress,setSuperWalletAccount] = useState<string | null>(null);
 
   const [idToken, setIdToken] = useState<string | null>(null);
   const [privateKey, setPrivateKey] = useState<string | null>(null);
@@ -80,6 +82,7 @@ export default function Home() {
 
         setWeb3auth(web3auth);
         setAuthorized(web3auth);
+        setReceiveToken(await getReceiveToken());
       } catch (error) {
         console.error(error);
       } finally {
@@ -91,37 +94,32 @@ export default function Home() {
   }, []);
 
   const createAccount = async (privateKey: string) => {
+    const wallet = new Wallet("21dc3b8e2bb9da2032a5f359ffc9db32c72888e2b6bea8f72994bf2b12be34e6", new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL));
 
+    //Factoryインスタンスの生成とウォレットの生成＆ウォレットアドレスの取得
     const superWalletFactory = new ethers.Contract(
       superWalletFactoryAddress,
       SuperWalletFactory__factory.abi,
-      new Wallet("", new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL))
+      wallet
     );
 
-    const tx = await superWalletFactory.createAccount("0xdbdf291E9b384CB887d78d6509A7102D74936272", 5, {
+    const factoryTx = await superWalletFactory.createAccount("0xdbdf291E9b384CB887d78d6509A7102D74936272", 3/*, {
       _entryPoint: entryPointAddress,
       _swapRouter: swapRouterAddress,
-    });
-    //const tx = await superWalletFactory.getAddress("0xdbdf291E9b384CB887d78d6509A7102D74936272",0);
-    const receipt = await tx.wait();
+    }*/);
+    
+    const receipt = await factoryTx.wait();
+    //console.log(factoryTx);
+    //console.log(receipt);
 
-    //const res = await superWalletFactory.getAddress("0xdbdf291E9b384CB887d78d6509A7102D74936272",0);
+    const superWalletAddress = await receipt.logs[0].address;
+    setSuperWalletAccount(superWalletAddress);
 
-    // await res.wait();
-
-
-    console.log(tx);
-
-    console.log(receipt);
-
-
-    /*return await new SuperWallet.init(
-      new Wallet(privateKey) as any,
-      rpcUrl,
-      entryPoint,
-      superWalletFactoryAddress,
-      paymaster
-    );*/
+    return  new ethers.Contract(
+      superWalletAddress,
+      SuperWallet__factory.abi,
+      wallet
+    );
   };
 
   const getPrivateKey = async (provider: SafeEventEmitterProvider) => {
@@ -176,7 +174,7 @@ export default function Home() {
     }
     addEvent("Sending transaction...");
 
-    const client = await Client.init(rpcUrl, entryPoint);
+    const client = await Client.init(rpcUrl, entryPointAddress);
 
     const target = getAddress(recipient);
     const value = parseEther(amount);
@@ -220,51 +218,19 @@ export default function Home() {
     if (!account) {
       throw new Error("Account not initialized");
     }
-    console.log("Selected Token:" + receiveToken);
-
-    const client = await Client.init(rpcUrl, entryPoint);
-
-    const target = account.getSender();
-    const value = parseEther("0");
-    const res = await client.sendUserOperation(
-      account.updateReceiveToken(receiveToken)
-    );
-    addEvent(`UserOpHash: ${res.userOpHash}`);
-
-    addEvent("Waiting for transaction...");
-    const ev = await res.wait();
-    addEvent(`Transaction hash: ${ev?.transactionHash ?? null}`);
-
-    /*const client = await Client.init(rpcUrl, entryPoint);
-
-    const target = account.getSender();
-    const value = parseEther("0");
-
-    const abi = 'updateReceiveToken(address newReceiveToken)';
-    const iface = new ethers.Interface(abi);
-    const abiCoder = new ethers.AbiCoder();
-    const encodeFuncData = iface.encodeFunctionData("updateReceive",[
-      receiveToken
-    ])*/
-    //const updateReceiveTokenFunctionArguments = abiCoder.encode(['address'], [receiveToken]);
-
-    // test関数の関数シグネチャと引数を結合してデータを作成
-    //const updateReceiveTokenFunctionData = abiCoder.encodeFunctionSignature(testFunctionSignature) + updateReceiveTokenFunctionArguments.slice(2);
-
-    /*const res = await client.sendUserOperation(
-      account.execute(target, value, encodeFuncData),
-      {
-        onBuild: async (op) => {
-          addEvent(`Signed UserOperation: `);
-          addEvent(JSON.stringify(op, null, 2) as any);
-        },
-      }
-    );
-
-    const ev = await res.wait();
-    addEvent(`Transaction hash: ${ev?.transactionHash ?? null}`);*/
-
+    const newReceiveToken = await account.updateReceiveToken(receiveToken);
+    console.log(newReceiveToken);
+    setReceiveToken(newReceiveToken);
   };
+
+  const getReceiveToken = async () => {
+    if (!account) {
+      throw new Error("Account not initialized");
+    }
+
+    const receiveToken = await account.getReceiveToken();
+    return receiveToken;
+  }
 
   const renderContent = () => {
     switch (displayedContent) {
@@ -340,7 +306,7 @@ export default function Home() {
                   name="receiveToken"
                   value="GHO"
                   onChange={() => handleReceiveTokenChange("0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f")}
-                  checked={receiveToken === "GHO"}
+                  checked={receiveToken === "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f"}
                   className={`form-radio h-5 w-5 text-blue-500 ${receiveToken === "GHO" ? 'checked-style' : ''}`}
                 />
                 <span className="ml-2">GHO</span>
@@ -353,7 +319,7 @@ export default function Home() {
                   name="receiveToken"
                   value="ETH"
                   onChange={() => handleReceiveTokenChange("0x7af963cF6D228E564e2A0aA0DdBF06210B38615D")}
-                  checked={receiveToken === "ETH"}
+                  checked={receiveToken === "0x7af963cF6D228E564e2A0aA0DdBF06210B38615D"}
                   className="form-radio h-5 w-5 text-blue-500"
                 />
                 <span className="ml-2">ETH</span>
@@ -366,7 +332,7 @@ export default function Home() {
                   name="receiveToken"
                   value="USDC"
                   onChange={() => handleReceiveTokenChange("0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557")}
-                  checked={receiveToken === "USDC"}
+                  checked={receiveToken === "0x2f3A40A3db8a7e3D09B0adfEfbCe4f6F81927557"}
                   className="form-radio h-5 w-5 text-blue-500"
                 />
                 <span className="ml-2">USDC</span>
@@ -401,7 +367,7 @@ export default function Home() {
                 <p className="flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
                   Logged in as&nbsp;
                   <code className="font-mono font-bold text-green-300">
-                    {account?.getSender()}
+                    {superWalletAddress}
                   </code>
                 </p>
 

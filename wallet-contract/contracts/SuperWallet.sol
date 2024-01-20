@@ -29,7 +29,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     uint96 private _nonce;
     address public owner;
 
-    address private _receiveToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
+    address private _receiveToken;// = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
     //address private _sentToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;//goerliETH多分
     address public swapRouterAddress = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
 
@@ -42,9 +42,8 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
         _entryPoint = anEntryPoint;
         _disableInitializers();
         swapRouter = _swapRouter;
+        _receiveToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
     }
-
-    
 
     event SuperWalletInitialized(IEntryPoint indexed entryPoint, address indexed owner);
 
