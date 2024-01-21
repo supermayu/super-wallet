@@ -1,6 +1,6 @@
 import { SuperWallet__factory } from "@/typechain-types";
 //import { SuperWallet } from "../typechain-types/contracts";
-import { SuperWalletFactory__factory } from "../typechain-types/factories/contracts";
+import { SuperWalletFactory__factory } from "@/typechain-types/factories/contracts";
 import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { Web3Auth } from "@web3auth/modal";
 import {
@@ -12,13 +12,11 @@ import {
   Wallet,
 } from "ethers";
 import { useEffect, useState } from "react";
-import { useStyleRegistry } from "styled-jsx";
 import { Client, Presets } from "userop";
 
 const entryPointAddress = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
-//const simpleAccountFactory = "0x9406Cc6185a346906296840746125a0E44976454";
-const swapRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
-const superWalletFactoryAddress = "0xa5a483C4C40eaB04491653e299C5d069AA8748C1";
+//const swapRouterAddress = "0xE592427A0AEce92De3Edee1F18E0157C05861564"
+const superWalletFactoryAddress = "0x7E2EEfc146f487BBdfE21F6Dc2c28dA83d1B2a45";
 const pmContext = {
   type: "payg",
 };
@@ -94,23 +92,20 @@ export default function Home() {
   }, []);
 
   const createAccount = async (privateKey: string) => {
-    const wallet = new Wallet("21dc3b8e2bb9da2032a5f359ffc9db32c72888e2b6bea8f72994bf2b12be34e6", new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL));
+    const wallet = new Wallet(privateKey, new JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL));
 
-    //Factoryインスタンスの生成とウォレットの生成＆ウォレットアドレスの取得
     const superWalletFactory = new ethers.Contract(
       superWalletFactoryAddress,
       SuperWalletFactory__factory.abi,
       wallet
     );
 
-    const factoryTx = await superWalletFactory.createAccount("0xdbdf291E9b384CB887d78d6509A7102D74936272", 3/*, {
+    const factoryTx = await superWalletFactory.createAccount(wallet.address, 0/*, {
       _entryPoint: entryPointAddress,
       _swapRouter: swapRouterAddress,
     }*/);
     
     const receipt = await factoryTx.wait();
-    //console.log(factoryTx);
-    //console.log(receipt);
 
     const superWalletAddress = await receipt.logs[0].address;
     setSuperWalletAccount(superWalletAddress);
@@ -149,7 +144,6 @@ export default function Home() {
     if (!web3authProvider) {
       throw new Error("web3authprovider not initialized yet");
     }
-
     setAuthorized(web3auth);
   };
 
@@ -177,9 +171,9 @@ export default function Home() {
     const client = await Client.init(rpcUrl, entryPointAddress);
 
     const target = getAddress(recipient);
-    const value = parseEther(amount);
+    const value = parseEther(amount); 
     const res = await client.sendUserOperation(
-      account.execute(target, value, "0x"),
+      await account.execute(target, value, "0x"),
       {
         onBuild: async (op) => {
           addEvent(`Signed UserOperation: `);
@@ -192,6 +186,7 @@ export default function Home() {
     addEvent("Waiting for transaction...");
     const ev = await res.wait();
     addEvent(`Transaction hash: ${ev?.transactionHash ?? null}`);
+
   };
 
   const handleRecipientChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,9 +197,15 @@ export default function Home() {
     setAmount(event.target.value);
   };
 
-  const handleSendTokenClick = () => {
-    if (recipientAddress && recipientAddress.length > 0 && amount && amount.length > 0) {
-      sendTransaction(recipientAddress, amount);
+  const transfer = async () => {
+    if (recipientAddress && recipientAddress.length > 0 && amount && amount.length > 0 && account) {
+      const tokenIn = _selectedToken;
+  
+      await account.receiveToken(amount,tokenIn,{
+        //value: amountIn,
+        gasPrice: ethers.parseUnits('5', 'gwei'), 
+        gasLimit: 200000,
+      });
     } else {
       console.error("Recipient address and amount are required.");
     }
@@ -255,7 +256,7 @@ export default function Home() {
             />
             <button
               className="group rounded-lg border border-transparent px-5 py-4  bg-blue-500 w-full transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-              onClick={handleSendTokenClick}
+              onClick={transfer}
             >
               <h2 className={`mb-3 text-2xl font-semibold`}>
                 Send token{" "}
@@ -345,8 +346,6 @@ export default function Home() {
               Decide
             </button>
           </div>
-
-
         );
       default:
         return null;
@@ -370,7 +369,6 @@ export default function Home() {
                     {superWalletAddress}
                   </code>
                 </p>
-
                 <button
                   type="button"
                   onClick={logout}
@@ -401,7 +399,6 @@ export default function Home() {
                     <h2 className={`mb-3 text-2xl font-semibold`}>
                       Setting
                     </h2>
-
                   </button>
                 </div>
                 <div className=" col-start-2 col-span-2 row-span-2 border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
@@ -410,7 +407,6 @@ export default function Home() {
                       <div>
                         <div className="grid grid-cols-3 grid-rows-3 gap-10">
                           <div className="col-span-1 row-span-1"></div>
-
                           {renderContent()}
                         </div>
                         <div className="col-span-1 row-span-1"></div>
@@ -419,11 +415,7 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-
-
-
             </div>
-
           ) : (
             <button
               type="button"

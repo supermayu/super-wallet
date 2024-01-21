@@ -55,5 +55,3 @@ This demonstration app provides a great starting point for integrating self-cust
 
 For further information and help, feel free to raise an issue in this repository.
 
-
-https://goerli.etherscan.io/tx/0x42cf11a18cd4b6ff85322b7ca3515aba72caee5070ea73be22b68aed61b061a8#eventlog

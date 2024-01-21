@@ -9,8 +9,10 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import '@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol';
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@account-abstraction/contracts/core/BaseAccount.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 
 /**
   * minimal account.
@@ -29,20 +31,19 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     uint96 private _nonce;
     address public owner;
 
-    address private _receiveToken;// = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
-    //address private _sentToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;//goerliETH多分
+    address private _receiveToken= 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
     address public swapRouterAddress = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+
 
     uint24 public constant poolFee = 3000;
 
-    IEntryPoint private immutable _entryPoint;
+    IEntryPoint private  immutable _entryPoint;
     ISwapRouter public immutable swapRouter;
 
     constructor(IEntryPoint anEntryPoint, ISwapRouter _swapRouter) {
         _entryPoint = anEntryPoint;
         _disableInitializers();
         swapRouter = _swapRouter;
-        _receiveToken = 0x7af963cF6D228E564e2A0aA0DdBF06210B38615D;
     }
 
     event SuperWalletInitialized(IEntryPoint indexed entryPoint, address indexed owner);
@@ -52,12 +53,10 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
         _;
     }
 
-    /// @inheritdoc BaseAccount
-    function nonce() public view virtual override returns (uint256) {
+    function nonce() public view virtual  returns (uint256) {
         return _nonce;
     }
 
-    /// @inheritdoc BaseAccount
     function entryPoint() public view virtual override returns (IEntryPoint) {
         return _entryPoint;
     }
@@ -109,7 +108,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     }
 
     /// implement template method of BaseAccount
-    function _validateAndUpdateNonce(UserOperation calldata userOp) internal override {
+    function _validateAndUpdateNonce(UserOperation calldata userOp) internal  {
         require(_nonce++ == userOp.nonce, "account: invalid nonce");
     }
 
@@ -159,11 +158,35 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
         _onlyOwner();
     }
 
+    function test (address tokenIn, uint256 amountIn) external  returns (uint256 amountOut)  {
+        IERC20(tokenIn).approve(address(this), amountIn);
+        IERC20(tokenIn).approve(msg.sender, amountIn);
+        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this),amountIn);
+        TransferHelper.safeApprove(tokenIn, address(swapRouter), amountIn);
+        ISwapRouter.ExactInputSingleParams memory params =
+           ISwapRouter.ExactInputSingleParams({
+            tokenIn: tokenIn,
+            tokenOut: _receiveToken,
+            fee: poolFee,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+        amountOut = swapRouter.exactInputSingle(params);
+    }
+
     /**
      * Swap goerliETH to GHO
-     * @param amountIn amount of the token sent
      */
-    function receiveToken(uint256 amountIn, address tokenIn) external payable virtual {
+    function receiveToken(address tokenIn, uint256 amountIn) public payable {
+
+        IERC20(tokenIn).approve(address(this), amountIn);
+
+        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this), amountIn);
+
+        TransferHelper.safeApprove(tokenIn, address(swapRouter), amountIn);
 
         ISwapRouter.ExactInputSingleParams memory params =
            ISwapRouter.ExactInputSingleParams({
@@ -183,9 +206,15 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
             params
         );
 
-        // Transfer the specified amount of GHO to this contract.
-         _requireFromEntryPointOrOwner();
-        _call(swapRouterAddress, 0, funcData);
+         //_requireFromEntryPointOrOwner();
+        _call(swapRouterAddress, amountIn, funcData);
+        //_call(swapRouterAddress, 0, funcData);
+    }
+
+     function getTokenBalance(address  token) external view returns (uint256) {
+        // ERC-20 トークンの残高を取得
+        uint256 tokenBalance = IERC20(token).balanceOf(address(this));
+        return tokenBalance;
     }
 
     // _receiveToken を取得する関数
@@ -197,7 +226,5 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
     function updateReceiveToken(address newReceiveToken) public {
         _receiveToken = newReceiveToken;
     }
-
-
 }
 
