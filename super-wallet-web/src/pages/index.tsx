@@ -306,8 +306,8 @@ export default function Home() {
                   type="radio"
                   name="receiveToken"
                   value="GHO"
-                  onChange={() => handleReceiveTokenChange("0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f")}
-                  checked={receiveToken === "0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f"}
+                  onChange={() => handleReceiveTokenChange("0xcbE9771eD31e761b744D3cB9eF78A1f32DD99211")}
+                  checked={receiveToken === "0xcbE9771eD31e761b744D3cB9eF78A1f32DD99211"}
                   className={`form-radio h-5 w-5 text-blue-500 ${receiveToken === "GHO" ? 'checked-style' : ''}`}
                 />
                 <span className="ml-2">GHO</span>
