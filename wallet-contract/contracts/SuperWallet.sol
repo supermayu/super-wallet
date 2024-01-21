@@ -158,27 +158,8 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
         _onlyOwner();
     }
 
-    function test (address tokenIn, uint256 amountIn) external  returns (uint256 amountOut)  {
-        IERC20(tokenIn).approve(address(this), amountIn);
-        IERC20(tokenIn).approve(msg.sender, amountIn);
-        TransferHelper.safeTransferFrom(tokenIn, msg.sender, address(this),amountIn);
-        TransferHelper.safeApprove(tokenIn, address(swapRouter), amountIn);
-        ISwapRouter.ExactInputSingleParams memory params =
-           ISwapRouter.ExactInputSingleParams({
-            tokenIn: tokenIn,
-            tokenOut: _receiveToken,
-            fee: poolFee,
-            recipient: address(this),
-            deadline: block.timestamp,
-            amountIn: amountIn,
-            amountOutMinimum: 0,
-            sqrtPriceLimitX96: 0
-        });
-        amountOut = swapRouter.exactInputSingle(params);
-    }
-
     /**
-     * Swap goerliETH to GHO
+     * Receive and swap token
      */
     function receiveToken(address tokenIn, uint256 amountIn) public payable {
 
@@ -206,9 +187,7 @@ contract SuperWallet is BaseAccount, UUPSUpgradeable, Initializable {
             params
         );
 
-         //_requireFromEntryPointOrOwner();
         _call(swapRouterAddress, amountIn, funcData);
-        //_call(swapRouterAddress, 0, funcData);
     }
 
      function getTokenBalance(address  token) external view returns (uint256) {
